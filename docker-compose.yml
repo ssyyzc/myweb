@@ -40,7 +40,9 @@ services:  #定义服务的入口和镜像
   php-fpm:
     container_name: php-fpm
     # image: php:7.4.30-fpm
-    build: ./php   #fastadmin目前只支持7.1版本
+    build:
+      context: ./php   #可以是dockerfile的路径，或者是指向git仓库的url地址
+      dockerfile: Dockerfile  #构建镜像上下文路径
     ports:
       - "8001:9000"
     volumes:
