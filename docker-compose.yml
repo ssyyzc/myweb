@@ -1,0 +1,93 @@
+version: '3.8' #指定本yml的compose架构版本
+#参考: compose搭建lnmp环境 https://blog.csdn.net/csdn_yasin/article/details/123084702
+#参考: compose项目 http://t.zoukankan.com/JetpropelledSnake-p-10405114.html
+#启动: $ docker-compose -p fastadmin up -d   # -p指定项目名称  -d表示后台启动
+#php配置及扩展官方说明: https://hub.docker.com/_/php?tab=description
+
+networks: #网络组，允许相同组内的每个容器之间相互请求联通
+  frontend:
+  backend:
+
+services:  #定义服务的入口和镜像
+  mynginx: #image镜像服务的自定义别名
+    container_name: mynginx   #自定义容器名
+    #image: nginx:latest   #使用本地的指定镜像构建，如果本地没有就从docker官方下载远程镜像
+    build: #指定使用Dockerfile文件构建镜像
+      context: ./nginx   #可以是dockerfile的路径，或者是指向git仓库的url地址
+      dockerfile: Dockerfile  #构建镜像上下文路径
+      #target: dev    #多层构建，可以指定构建哪一层，指定dev层构建
+      #args:   #添加构建参数，只能在构建过程中访问的环境变量
+      #  buildno: 1
+      #labels:  设置构建镜像的标签
+      #  - "com.example.description=Accounting webapp"
+      #  - "com.example.department=Finance"
+      #  - "com.example.label-with-empty-value"
+    #command: sh -c "yarn install && yarn run dev"    #执行命令，覆盖容器启动后默认执行的命令
+    #working_dir: /app   #工作目录
+    ports:  #指定运行端口
+      - "80:80"
+    volumes: #将本地主机的文件或目录挂载到容器需要的位置，建立映射关系，ro只读，rw可读写
+      #- ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./www:/var/www     # ./code为本地代码路径，/var/www为docker中的项目根目录
+      - ./nginx/log/:/var/log/nginx/:rw
+    depends_on: #依赖项，必须先加载的容器
+      - "php-fpm"
+    networks: # 定义当前容器所属网络组
+      - frontend
+    #volumes_from:  从另一个服务或容器挂载卷，可选参数:ro和:rw
+    #hostname 容器主机名
+  php-fpm:
+    container_name: php-fpm
+    # image: php:7.4.30-fpm
+    build: ./php   #fastadmin目前只支持7.1版本
+    ports:
+      - "8001:9000"
+    volumes:
+      - ./www:/var/www  # 项目根目录
+      - ./php/etc/:/usr/local/etc/:rw #必须加上rw参数，否则docker没有写权限，配置文件不会自动创建。
+      #- ./php74/php-fpm.conf:/usr/local/etc/php-fpm.conf
+      #- ./php74/php.ini:/usr/local/etc/php/php.ini
+      #- ./php74/php-fpm.d:/usr/local/etc/php-fpm.d
+      #- ./php74/crontab:/etc/crontab
+      #扩展目录 /usr/local/lib/php/extensions/no-debug-non-zts-20160303
+      # 初始化扩展列表 /usr/src/php/ext  必须执行“docker-php-source extract”后才有
+      #- /Users/wyb/Sites/docker/php1/php74/php-fpm.conf:/usr/local/etc/php-fpm.conf
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - "mymysql"
+      - "myredis"
+  mymysql:
+    container_name: mymysql
+    # image: mysql:5.7.38
+    build: ./mysql
+    ports:
+      - "8002:3306"
+    volumes:
+      - ./mysql/data/:/var/lib/mysql/:rw
+      #- ./mysql/my.cnf:/etc/mysql/my.cnf:ro
+    environment:  #环境变量定义
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: test_base                 #数据库名
+      MYSQL_USER: zccm                          #自定义数据库的用户，权限只作用于MYSQL_DATABASE配置的数据库
+      MYSQL_PASSWORD: zccm123                   #自定义数据库的用户，权限只作用于MYSQL_DATABASE配置的数据库
+      # MYSQL_USER:root # 设置 Mysql 用户名称
+      # - MYSQL_PASSWORD=${MYSQL_PASSWORD} # 设置 Mysql 用户密码
+      # - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+
+    networks:
+      - backend
+  myredis:
+    container_name: myredis
+    # image: redis:6.2.6
+    build: ./redis
+    ports:
+      - "8003:6379"
+    volumes:
+      #- ./redis/redis.conf:/etc/redis/redis.conf:ro
+      - ./redis/conf:/usr/local/etc/redis
+      - ./redis/data:/data
+    networks:
+      - backend
